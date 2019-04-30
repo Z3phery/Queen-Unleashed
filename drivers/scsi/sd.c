@@ -574,6 +574,7 @@ static struct scsi_driver sd_template = {
 		.name		= "sd",
 		.owner		= THIS_MODULE,
 		.probe		= sd_probe,
+		.probe_type	= PROBE_PREFER_ASYNCHRONOUS,
 		.remove		= sd_remove,
 		.shutdown	= sd_shutdown,
 		.pm		= &sd_pm_ops,
@@ -3417,12 +3418,8 @@ static int sd_media_scan_thread(void *__sdkp)
 }
 #endif
 
-/*
- * The asynchronous part of sd_probe
- */
-static void sd_probe_async(void *data, async_cookie_t cookie)
+static void sd_probe_part2(struct scsi_disk *sdkp)
 {
-	struct scsi_disk *sdkp = data;
 	struct scsi_device *sdp;
 	struct gendisk *gd;
 	u32 index;
@@ -3516,7 +3513,6 @@ static void sd_probe_async(void *data, async_cookie_t cookie)
 	}
 
 	scsi_autopm_put_device(sdp);
-	put_device(&sdkp->dev);
 #ifdef CONFIG_USB_STORAGE_DETECT
 	if (sdp->host->by_usb) {
 		if (!IS_ERR(sdkp->th))
@@ -3662,8 +3658,7 @@ static int sd_probe(struct device *dev)
 	}
 #endif
 
-	get_device(&sdkp->dev);	/* prevent release before async_schedule */
-	async_schedule_domain(sd_probe_async, sdkp, &scsi_sd_probe_domain);
+	sd_probe_part2(sdkp);
 
 	return 0;
 
@@ -3722,7 +3717,6 @@ static int sd_remove(struct device *dev)
 	scsi_autopm_get_device(sdkp->device);
 
 	async_synchronize_full_domain(&scsi_sd_pm_domain);
-	async_synchronize_full_domain(&scsi_sd_probe_domain);
 	device_del(&sdkp->dev);
 	del_gendisk(sdkp->disk);
 	sd_shutdown(dev);
