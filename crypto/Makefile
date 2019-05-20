@@ -61,7 +61,6 @@ obj-$(CONFIG_CRYPTO_FIPS) += fips140_last_file.o
 obj-$(CONFIG_CRYPTO_FIPS) += fips140_out.o
 # ---------------------------------------
 
-obj-$(CONFIG_CRYPTO_WORKQUEUE) += crypto_wq.o
 obj-$(CONFIG_CRYPTO_ENGINE) += crypto_engine.o
 
 obj-$(CONFIG_CRYPTO_AKCIPHER2) += akcipher.o
