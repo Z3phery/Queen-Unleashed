@@ -1231,6 +1231,12 @@ struct ufs_hba {
 	 */
 #define UFSHCD_CAP_KEEP_AUTO_BKOPS_ENABLED_EXCEPT_SUSPEND (1 << 6)
 	/*
+	 * This capability allows host controller driver to automatically
+	 * enable runtime power management by itself instead of waiting
+	 * for userspace to control the power management.
+	 */
+#define UFSHCD_CAP_RPM_AUTOSUSPEND (1 << 6)
+	/*
 	 * If host controller hardware can be power collapsed when UFS link is
 	 * in hibern8 then enable this cap.
 	 */
@@ -1342,6 +1348,10 @@ static inline int ufshcd_is_clkscaling_supported(struct ufs_hba *hba)
 static inline bool ufshcd_can_autobkops_during_suspend(struct ufs_hba *hba)
 {
 	return hba->caps & UFSHCD_CAP_AUTO_BKOPS_SUSPEND;
+}
+static inline bool ufshcd_is_rpm_autosuspend_allowed(struct ufs_hba *hba)
+{
+	return hba->caps & UFSHCD_CAP_RPM_AUTOSUSPEND;
 }
 static inline bool ufshcd_is_hibern8_on_idle_allowed(struct ufs_hba *hba)
 {
