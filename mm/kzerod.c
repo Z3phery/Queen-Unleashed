@@ -72,14 +72,18 @@ static int kzerod_app_launch_notifier(struct notifier_block *nb,
 		prev_total = global_node_page_state(ZERO_PAGE_ALLOC_TOTAL);
 		prev_prezero = global_node_page_state(ZERO_PAGE_ALLOC_PREZERO);
 		prev_jiffies = jiffies;
+#if defined(CONFIG_TRACING) && defined(DEBUG)
 		trace_printk("kzerod: %s %d\n", current->comm, current->pid);
+#endif
 	} else if (prev_launch && !app_launch) {
 		cur_total = global_node_page_state(ZERO_PAGE_ALLOC_TOTAL);
 		cur_prezero = global_node_page_state(ZERO_PAGE_ALLOC_PREZERO);
+#if defined(CONFIG_TRACING) && defined(DEBUG)
 		trace_printk("kzerod: launch finished used zero %luKB/%luKB %ums\n",
 			     K(cur_prezero - prev_prezero),
 			     K(cur_total - prev_total),
 			     jiffies_to_msecs(jiffies - prev_jiffies));
+#endif
 		pr_info("kzerod: launch finished used zero %luKB/%luKB %ums\n",
 			     K(cur_prezero - prev_prezero),
 			     K(cur_total - prev_total),
@@ -165,7 +169,9 @@ static void try_wake_up_kzerod(void)
 		return;
 
 	if (!kzerod_wmark_low_ok() && (kzerod_state != KZEROD_RUNNING)) {
+#if defined(CONFIG_TRACING) && defined(DEBUG)
 		trace_printk("kzerod: %d to %d\n", kzerod_state, KZEROD_RUNNING);
+#endif
 		kzerod_state = KZEROD_RUNNING,
 		wake_up(&kzerod_wait);
 	}
@@ -237,7 +243,9 @@ restart:
 	}
 	spin_unlock(&prezeroed_lock);
 
+#if defined(CONFIG_TRACING) && defined(DEBUG)
 	trace_printk("kzerod: drained %luKB\n", K(prev_zero));
+#endif
 }
 
 /* page is already locked before this function is called */
@@ -422,16 +430,20 @@ static int kzerod(void *p)
 		wait_event_freezable(kzerod_wait,
 				     kzerod_state == KZEROD_RUNNING);
 		prev_zero = nr_prezeroed;
+#if defined(CONFIG_TRACING) && defined(DEBUG)
 		trace_printk("woken up %lu < %lu < %lu KB\n",
 			     K(kzerod_wmark_low), K(nr_prezeroed),
 			     K(kzerod_wmark_high));
+#endif
 		prev_jiffies = jiffies;
 		ret = kzerod_zeroing(&prezeroed);
 		cur_zero = nr_prezeroed;
+#if defined(CONFIG_TRACING) && defined(DEBUG)
 		trace_printk("ret:%s(%d) zeroed:%lu->%lu(%luKB) %ums\n",
 			     ret ? "paused" : "finished", ret,
 			     K(prev_zero), K(cur_zero), K(prezeroed),
 			     jiffies_to_msecs(jiffies - prev_jiffies));
+#endif
 		switch (ret) {
 		case 0:
 			kzerod_state = KZEROD_SLEEP_DONE;
@@ -1076,10 +1088,14 @@ static int kzerod_enabled_param_set(const char *val,
 	if (!prev && kzerod_enabled) {
 		kzerod_state = KZEROD_RUNNING,
 		wake_up(&kzerod_wait);
+#if defined(CONFIG_TRACING) && defined(DEBUG)
 		trace_printk("%s\n", "kzerod: enabled");
+#endif
 	} else if (prev && !kzerod_enabled) {
 		drain_zeroed_page();
+#if defined(CONFIG_TRACING) && defined(DEBUG)
 		trace_printk("%s\n", "kzerod: disabled");
+#endif
 	}
 	return error;
 }
