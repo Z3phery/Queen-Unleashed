@@ -137,7 +137,6 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 				 size_t count, loff_t *ppos)
 
 {
-#ifndef CONFIG_SECURITY_SELINUX_SET_PERMISSIVE
 	struct selinux_fs_info *fsi = file_inode(file)->i_sb->s_fs_info;
 	struct selinux_state *state = fsi->state;
 	char *page = NULL;
@@ -187,9 +186,6 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 out:
 	kfree(page);
 	return length;
-#else
-	return count;
-#endif
 }
 #else
 #define sel_write_enforce NULL
