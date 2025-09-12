@@ -52,12 +52,35 @@ void rkp_robuffer_init(void)
 	fastuh_call(FASTUH_APP_RKP, RKP_GET_RO_BUFFER, (u64)&robuffer_base, (u64)&robuffer_size, 0, 0);
 }
 
+
 /* allocation */
-inline phys_addr_t rkp_ro_alloc_phys(void)
+inline phys_addr_t rkp_ro_alloc_phys(int shift)
 {
-	phys_addr_t ret = 0;
-	uh_call(UH_APP_RKP, RKP_RKP_ROBUFFER_ALLOC, (u64)&ret, 0, 0, 0);
-	return ret;
+	unsigned long flags;
+	unsigned int i = 0;
+	phys_addr_t alloc_addr = 0;
+	bool found = false;
+
+	int ro_pages = robuffer_size >> PAGE_SHIFT;
+
+	spin_lock_irqsave(&ro_rkp_pages_lock, flags);
+	while (i < ro_pages) {
+		if (ro_pages_stat[ro_alloc_avail] == false) {
+			found = true;
+			break;
+		}
+		ro_alloc_avail = (ro_alloc_avail + 1) % ro_pages;
+		i++;
+	}
+
+	if (found) {
+		alloc_addr = (phys_addr_t)(robuffer_base + (ro_alloc_avail << PAGE_SHIFT));
+		ro_pages_stat[ro_alloc_avail] = true;
+		ro_alloc_avail = (ro_alloc_avail + 1) % ro_pages;
+	}
+	spin_unlock_irqrestore(&ro_rkp_pages_lock, flags);
+
+	return alloc_addr;
 }
 
 inline void *rkp_ro_alloc(void)

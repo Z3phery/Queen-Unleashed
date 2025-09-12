@@ -77,7 +77,7 @@ extern void __init rkp_init(void);
 extern void rkp_deferred_init(void);
 extern void rkp_robuffer_init(void);
 
-extern inline phys_addr_t rkp_ro_alloc_phys(void);
+extern inline phys_addr_t rkp_ro_alloc_phys(int shift);
 extern inline void *rkp_ro_alloc(void);
 extern inline void rkp_ro_free(void *free_addr);
 extern inline bool is_rkp_ro_buffer(u64 addr);

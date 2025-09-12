@@ -1917,8 +1917,7 @@ static void free_ro_pages(struct kmem_cache *s,struct page *page, int order)
 		fastuh_call(FASTUH_APP_KDP, PGD_RWX, va_page, 0, 0, 0);
 		va_page += PAGE_SIZE;
 	}
-	memcg_uncharge_slab(page, order, s);
-	kasan_alloc_pages(page, order);
+	uncharge_slab_page(page, order, s);
 	__free_pages(page, order);
 	spin_unlock_irqrestore(&ro_pages_lock,flags);
 }
