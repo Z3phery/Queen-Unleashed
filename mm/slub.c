@@ -45,14 +45,6 @@
 
 #include "internal.h"
 
-#ifdef CONFIG_FASTUH_RKP
-#include <linux/rkp.h>
-#endif
-
-#ifdef CONFIG_FASTUH_KDP
-#include <linux/kdp.h>
-#endif
-
 /*
  * Lock order:
  *   1. slab_mutex (Global Mutex)
@@ -314,22 +306,11 @@ static inline void *get_freepointer_safe(struct kmem_cache *s, void *object)
 static inline void set_freepointer(struct kmem_cache *s, void *object, void *fp)
 {
 	unsigned long freeptr_addr = (unsigned long)object + s->offset;
-#ifdef CONFIG_FASTUH_KDP
-	u64 key = 0;
-#ifdef CONFIG_SLAB_FREELIST_HARDENED
-	key = (u64)s->random;
-#endif
-#endif
 
 #ifdef CONFIG_SLAB_FREELIST_HARDENED
 	BUG_ON(object == fp); /* naive detection of double free or corruption */
 #endif
 
-#ifdef CONFIG_FASTUH_KDP
-	if (kdp_cred_enable && is_kdp_kmem_cache(s))
-		fastuh_call(FASTUH_APP_KDP, SET_FREEPTR, (u64)object, (u64)s->offset, (u64)fp, key);
-	else
-#endif
 	*(void **)freeptr_addr = freelist_ptr(s, fp, freeptr_addr);
 }
 
@@ -476,10 +457,6 @@ static void get_map(struct kmem_cache *s, struct page *page, unsigned long *map)
 	void *p;
 	void *addr = page_address(page);
 
-#ifdef CONFIG_FASTUH_KDP
-	if (is_kdp_kmem_cache(s))
-		return;
-#endif
 	for (p = page->freelist; p; p = get_freepointer(s, p))
 		set_bit(slab_index(p, s, addr), map);
 }
@@ -579,10 +556,6 @@ static void set_track(struct kmem_cache *s, void *object,
 {
 	struct track *p = get_track(s, object, alloc);
 
-#ifdef CONFIG_FASTUH_KDP
-	if (is_kdp_kmem_cache(s))
-		return;
-#endif
 	if (addr) {
 #ifdef CONFIG_STACKTRACE
 		struct stack_trace trace;
@@ -777,10 +750,6 @@ static void init_object(struct kmem_cache *s, void *object, u8 val)
 {
 	u8 *p = object;
 
-#ifdef CONFIG_FASTUH_KDP
-	if (is_kdp_kmem_cache(s))
-		return;
-#endif
 	if (s->flags & SLAB_RED_ZONE)
 		memset(p - s->red_left_pad, val, s->red_left_pad);
 
@@ -809,10 +778,6 @@ static int check_bytes_and_report(struct kmem_cache *s, struct page *page,
 	u8 *end;
 
 	metadata_access_enable();
-#ifdef CONFIG_FASTUH_KDP
-	if (is_kdp_kmem_cache(s))
-		return 1;
-#endif
 	fault = memchr_inv(start, value, bytes);
 	metadata_access_disable();
 	if (!fault)
@@ -903,10 +868,6 @@ static int slab_pad_check(struct kmem_cache *s, struct page *page)
 	if (!(s->flags & SLAB_POISON))
 		return 1;
 
-#ifdef CONFIG_FASTUH_KDP
-	if (is_kdp_kmem_cache(s))
-		return 1;
-#endif
 	start = page_address(page);
 	length = PAGE_SIZE << compound_order(page);
 	end = start + length;
@@ -997,11 +958,6 @@ static int check_slab(struct kmem_cache *s, struct page *page)
 		return 0;
 	}
 
-#ifdef CONFIG_FASTUH_KDP
-	/* Skip this function for now */
-	if (is_kdp_kmem_cache(s))
-		return 1;
-#endif
 	maxobj = order_objects(compound_order(page), s->size);
 	if (page->objects > maxobj) {
 		slab_err(s, page, "objects %u > max %u",
@@ -1030,11 +986,6 @@ static int on_freelist(struct kmem_cache *s, struct page *page, void *search)
 	int max_objects;
 
 	fp = page->freelist;
-
-#ifdef CONFIG_FASTUH_KDP
-	if (is_kdp_kmem_cache(s))
-		return 0;
-#endif
 	while (fp && nr <= page->objects) {
 		if (fp == search)
 			return 1;
@@ -1100,10 +1051,6 @@ static void trace(struct kmem_cache *s, struct page *page, void *object,
 static void add_full(struct kmem_cache *s,
 	struct kmem_cache_node *n, struct page *page)
 {
-#ifdef CONFIG_FASTUH_KDP
-	if (is_kdp_kmem_cache(s))
-		return;
-#endif
 	if (!(s->flags & SLAB_STORE_USER))
 		return;
 
@@ -1113,10 +1060,6 @@ static void add_full(struct kmem_cache *s,
 
 static void remove_full(struct kmem_cache *s, struct kmem_cache_node *n, struct page *page)
 {
-#ifdef CONFIG_FASTUH_KDP
-	if (is_kdp_kmem_cache(s))
-		return;
-#endif
 	if (!(s->flags & SLAB_STORE_USER))
 		return;
 
@@ -1185,10 +1128,6 @@ static inline int alloc_consistency_checks(struct kmem_cache *s,
 					struct page *page,
 					void *object, unsigned long addr)
 {
-#ifdef CONFIG_FASTUH_KDP
-	if (is_kdp_kmem_cache(s))
-		return 0;
-#endif
 	if (!check_slab(s, page))
 		return 0;
 
@@ -1277,10 +1216,6 @@ static noinline int free_debug_processing(
 	unsigned long flags;
 	int ret = 0;
 
-#ifdef CONFIG_FASTUH_KDP
-	if (is_kdp_kmem_cache(s))
-		return 0;
-#endif
 	spin_lock_irqsave(&n->list_lock, flags);
 	slab_lock(page);
 
@@ -1421,14 +1356,6 @@ slab_flags_t kmem_cache_flags(unsigned int object_size,
 	slab_flags_t flags, const char *name,
 	void (*ctor)(void *))
 {
-#ifdef CONFIG_FASTUH_KDP
-	if (name &&
-		(!strncmp(name, CRED_JAR_RO, strlen(CRED_JAR_RO)) ||
-		 !strncmp(name, TSEC_JAR, strlen(TSEC_JAR)) ||
-		 !strncmp(name, VFSMNT_JAR, strlen(VFSMNT_JAR))))
-		return flags;
-#endif
-
 	/*
 	 * Enable debugging if selected on the kernel commandline.
 	 */
@@ -1758,9 +1685,7 @@ static struct page *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 	void *start, *p, *next;
 	int idx, order;
 	bool shuffle;
-#if defined(CONFIG_FASTUH_KDP) && defined(CONFIG_FASTUH_RKP)
-	void *virt_page = NULL;
-#endif
+
 	flags &= gfp_allowed_mask;
 
 	if (gfpflags_allow_blocking(flags))
@@ -1775,17 +1700,7 @@ static struct page *allocate_slab(struct kmem_cache *s, gfp_t flags, int node)
 	alloc_gfp = (flags | __GFP_NOWARN | __GFP_NORETRY) & ~__GFP_NOFAIL;
 	if ((alloc_gfp & __GFP_DIRECT_RECLAIM) && oo_order(oo) > oo_order(s->min))
 		alloc_gfp = (alloc_gfp | __GFP_NOMEMALLOC) & ~(__GFP_RECLAIM|__GFP_NOFAIL);
-#if defined(CONFIG_FASTUH_KDP) && defined(CONFIG_FASTUH_RKP)
-	if (is_kdp_kmem_cache(s)) {
-		virt_page = rkp_ro_alloc();
-		if(!virt_page)
-			goto def_alloc;
 
-		page = virt_to_page(virt_page);
-		oo = s->min;
-	} else {
-def_alloc:
-#endif
 	page = alloc_slab_page(s, alloc_gfp, node, oo);
 	if (unlikely(!page)) {
 		oo = s->min;
@@ -1799,9 +1714,7 @@ def_alloc:
 			goto out;
 		stat(s, ORDER_FALLBACK);
 	}
-#if defined(CONFIG_FASTUH_KDP) && defined(CONFIG_FASTUH_RKP)
-	}
-#endif
+
 	page->objects = oo_objects(oo);
 
 	order = compound_order(page);
@@ -1815,34 +1728,6 @@ def_alloc:
 	start = page_address(page);
 
 	setup_page_debug(s, start, order);
-
-#ifdef CONFIG_FASTUH_KDP
-	/*
-	 * We modify the following so that slab alloc for protected data
-	 * types are allocated from our own pool.
-	 */
-	if (s->name) {
-		u64 sc,va_page;
-		va_page = (u64)__va(page_to_phys(page));
-
-		if (!strncmp(s->name, CRED_JAR_RO, strlen(CRED_JAR_RO))) {
-			for(sc = 0; sc < (1 << oo_order(oo)); sc++) {
-				fastuh_call(FASTUH_APP_KDP, SET_CRED_RO, va_page, 0, 0, 0);
-				va_page += PAGE_SIZE;
-			}
-		} else if (!strncmp(s->name, TSEC_JAR, strlen(TSEC_JAR))) {
-			for(sc = 0; sc < (1 << oo_order(oo)); sc++) {
-				fastuh_call(FASTUH_APP_KDP, SER_SP_RO, va_page, 0, 0, 0);
-				va_page += PAGE_SIZE;
-			}
-		} else if (!strncmp(s->name, VFSMNT_JAR, strlen(VFSMNT_JAR))) {
-			for(sc = 0; sc < (1 << oo_order(oo)); sc++) {
-				fastuh_call(FASTUH_APP_KDP, SET_NS_RO, va_page, 0, 0, 0);
-				va_page += PAGE_SIZE;
-			}
-		}
-	}
-#endif
 
 	shuffle = shuffle_freelist(s, page);
 
@@ -1892,37 +1777,6 @@ static struct page *new_slab(struct kmem_cache *s, gfp_t flags, int node)
 		flags & (GFP_RECLAIM_MASK | GFP_CONSTRAINT_MASK), node);
 }
 
-#ifdef CONFIG_FASTUH_KDP
-spinlock_t ro_pages_lock = __SPIN_LOCK_UNLOCKED();
-
-static void free_ro_pages(struct kmem_cache *s,struct page *page, int order)
-{
-	unsigned long flags;
-	unsigned long long sc,va_page;
-
-	sc = 0;
-	va_page = (unsigned long long)__va(page_to_phys(page));
-#ifdef CONFIG_FASTUH_RKP
-	if (is_rkp_ro_buffer(va_page)) {
-		for (sc = 0; sc < (1 << order); sc++) {
-			fastuh_call(FASTUH_APP_KDP, PGD_RWX, va_page, 0, 0, 0);
-			rkp_ro_free((void *)va_page);
-			va_page += PAGE_SIZE;
-		}
-		return;
-	}
-#endif
-	spin_lock_irqsave(&ro_pages_lock,flags);
-	for (sc = 0; sc < (1 << order); sc++) {
-		fastuh_call(FASTUH_APP_KDP, PGD_RWX, va_page, 0, 0, 0);
-		va_page += PAGE_SIZE;
-	}
-	uncharge_slab_page(page, order, s);
-	__free_pages(page, order);
-	spin_unlock_irqrestore(&ro_pages_lock,flags);
-}
-#endif /* CONFIG_FASTUH_KDP */
-
 static void __free_slab(struct kmem_cache *s, struct page *page)
 {
 	int order = compound_order(page);
@@ -1948,13 +1802,6 @@ static void __free_slab(struct kmem_cache *s, struct page *page)
 	page->mapping = NULL;
 	if (current->reclaim_state)
 		current->reclaim_state->reclaimed_slab += pages;
-#ifdef CONFIG_FASTUH_KDP
-	/* We free the protected pages here. */
-	if (is_kdp_kmem_cache(s)) {
-		free_ro_pages(s, page, order);
-		return;
-	}
-#endif
 	memcg_uncharge_slab(page, order, s);
 	kasan_alloc_pages(page, order);
 	__free_pages(page, order);
@@ -4493,10 +4340,8 @@ static struct kmem_cache * __init bootstrap(struct kmem_cache *static_cache)
 			p->slab_cache = s;
 
 #ifdef CONFIG_SLUB_DEBUG
-#ifndef CONFIG_FASTUH_KDP
 		list_for_each_entry(p, &n->full, lru)
 			p->slab_cache = s;
-#endif
 #endif
 	}
 	slab_init_memcg_params(s);

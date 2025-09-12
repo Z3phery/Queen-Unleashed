@@ -113,11 +113,7 @@ restart:
 			if (mnt != parent) {
 				dentry = READ_ONCE(mnt->mnt_mountpoint);
 				mnt = parent;
-#ifdef CONFIG_FASTUH_KDP
-				vfsmnt = ((struct kdp_mount *)mnt)->mnt;
-#else
 				vfsmnt = &mnt->mnt;
-#endif
 				continue;
 			}
 			if (!error)

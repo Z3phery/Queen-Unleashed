@@ -24,10 +24,6 @@
 #include <asm/cacheflush.h>
 #include <asm/tlbflush.h>
 
-#ifdef CONFIG_FASTUH_RKP
-#include <linux/rkp.h>
-#endif
-
 #define check_pgt_cache()		do { } while (0)
 
 #define PGALLOC_GFP	(GFP_KERNEL | __GFP_ZERO)
@@ -38,14 +34,6 @@
 static inline pmd_t *pmd_alloc_one(struct mm_struct *mm, unsigned long addr)
 {
 	struct page *page;
-
-#ifdef CONFIG_FASTUH_RKP
-	/* FIXME not zeroing the page */
-	pmd_t *rkp_ropage = NULL;
-
-	if (mm == &init_mm && (rkp_ropage = (pmd_t *)rkp_ro_alloc()))
-		return rkp_ropage;
-#endif
 
 	page = alloc_page(PGALLOC_GFP);
 	if (!page)
@@ -60,17 +48,8 @@ static inline pmd_t *pmd_alloc_one(struct mm_struct *mm, unsigned long addr)
 static inline void pmd_free(struct mm_struct *mm, pmd_t *pmdp)
 {
 	BUG_ON((unsigned long)pmdp & (PAGE_SIZE-1));
-#ifdef CONFIG_FASTUH_RKP
-	if (is_rkp_ro_buffer((u64)pmdp)) {
-		rkp_ro_free((void *)pmdp);
-	} else {
-		pgtable_pmd_page_dtor(virt_to_page(pmdp));
-		free_page((unsigned long)pmdp);
-	}
-#else
 	pgtable_pmd_page_dtor(virt_to_page(pmdp));
 	free_page((unsigned long)pmdp);
-#endif
 }
 
 static inline void __pud_populate(pud_t *pudp, phys_addr_t pmdp, pudval_t prot)
