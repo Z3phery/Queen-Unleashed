@@ -44,6 +44,9 @@
 #include <asm/virt.h>
 
 #include "efi-header.S"
+#ifdef CONFIG_CFP_ROPP
+#include <asm/cfp.h>
+#endif
 
 #define __PHYS_OFFSET	(KERNEL_START - TEXT_OFFSET)
 
@@ -117,6 +120,9 @@ pe_header:
 	 *                                        current RELR displacement
 	 */
 ENTRY(stext)
+#ifdef CONFIG_CFP_ROPP
+	ropp_primary_early_init
+#endif
 	bl	preserve_boot_args
 	bl	el2_setup			// Drop to EL1, w0=cpu_boot_mode
 	adrp	x23, __PHYS_OFFSET
@@ -733,6 +739,9 @@ __secondary_switched:
 	mov	sp, x1
 	ldr	x2, [x0, #CPU_BOOT_TASK]
 	msr	sp_el0, x2
+#ifdef CONFIG_CFP_ROPP
+	ropp_secondary_init x2
+#endif
 #ifdef CONFIG_SHADOW_CALL_STACK
 	ldr	x18, [x2, #TSK_TI_SCS]		// set shadow call stack
 	str	xzr, [x2, #TSK_TI_SCS]		// limit visibility of saved SCS

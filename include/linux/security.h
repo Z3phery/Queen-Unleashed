@@ -32,6 +32,12 @@
 #include <linux/mm.h>
 #include <linux/fs.h>
 
+#ifdef CONFIG_KDP_CRED
+/* For understanding size of struct cred*/
+#include <linux/rkp.h>
+#include <linux/kdp.h>
+#endif
+
 struct linux_binprm;
 struct cred;
 struct rlimit;
@@ -57,16 +63,16 @@ struct mm_struct;
 struct fs_context;
 struct fs_parameter;
 enum fs_value_type;
-
-/* Default (no) options for the capable function */
-#define CAP_OPT_NONE 0x0
-/* If capable should audit the security request */
 #define CAP_OPT_NOAUDIT BIT(1)
 /* If capable is being called by a setid function */
 #define CAP_OPT_INSETID BIT(2)
 
 /* LSM Agnostic defines for fs_context::lsm_flags */
 #define SECURITY_LSM_NATIVE_LABELS	1
+
+#ifndef CONFIG_KDP_CRED
+#define security_integrity_current()  0
+#endif
 
 struct ctl_table;
 struct audit_krule;

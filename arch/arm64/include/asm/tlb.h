@@ -21,6 +21,9 @@
 
 #include <linux/pagemap.h>
 #include <linux/swap.h>
+#ifdef CONFIG_UH_RKP
+#include <linux/rkp.h>
+#endif
 
 static inline void __tlb_remove_table(void *_table)
 {
@@ -66,6 +69,11 @@ static inline void __pmd_free_tlb(struct mmu_gather *tlb, pmd_t *pmdp,
 	struct page *page = virt_to_page(pmdp);
 
 	pgtable_pmd_page_dtor(page);
+#ifdef CONFIG_UH_RKP
+	if (is_rkp_ro_page((unsigned long)page)) {
+		rkp_ro_free((void *)page);
+	} else
+#endif
 	tlb_remove_table(tlb, page);
 }
 #endif
@@ -74,6 +82,11 @@ static inline void __pmd_free_tlb(struct mmu_gather *tlb, pmd_t *pmdp,
 static inline void __pud_free_tlb(struct mmu_gather *tlb, pud_t *pudp,
 				  unsigned long addr)
 {
+#ifdef CONFIG_UH_RKP
+	if (is_rkp_ro_page((unsigned long)pudp)) {
+		rkp_ro_free((void *)pudp);
+	} else
+#endif
 	tlb_remove_table(tlb, virt_to_page(pudp));
 }
 #endif
