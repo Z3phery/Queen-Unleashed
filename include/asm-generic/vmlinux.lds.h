@@ -325,6 +325,22 @@
 	__end_ro_after_init = .;
 #endif
 
+#ifdef CONFIG_FASTUH
+#define FASTUH_RO_SECTION						\
+	. = ALIGN(4096);						\
+	.fastuh_bss       : AT(ADDR(.fastuh_bss) - LOAD_OFFSET) {	\
+		*(.fastuh_bss.page_aligned)				\
+		*(.fastuh_bss)						\
+	} = 0								\
+									\
+	.fastuh_ro        : AT(ADDR(.fastuh_ro) - LOAD_OFFSET) {	\
+		*(.rkp_ro)						\
+		*(.kdp_ro)						\
+	}
+#else
+#define FASTUH_RO_SECTION
+#endif
+
 /*
  * Read only Data
  */
@@ -345,6 +361,9 @@
 	.rodata1          : AT(ADDR(.rodata1) - LOAD_OFFSET) {		\
 		*(.rodata1)						\
 	}								\
+									\
+	/* FASTUH */					\
+	FASTUH_RO_SECTION				\
 									\
 	/* PCI quirks */						\
 	.pci_fixup        : AT(ADDR(.pci_fixup) - LOAD_OFFSET) {	\

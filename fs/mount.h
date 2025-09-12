@@ -72,11 +72,22 @@ struct mount {
 	struct dentry *mnt_ex_mountpoint;
 } __randomize_layout;
 
+#ifdef CONFIG_FASTUH_KDP
+struct kdp_mount {
+	struct mount mount;
+	struct vfsmount *mnt;
+};
+#endif
+
 #define MNT_NS_INTERNAL ERR_PTR(-EINVAL) /* distinct from any mnt_namespace */
 
 static inline struct mount *real_mount(struct vfsmount *mnt)
 {
+#ifdef CONFIG_FASTUH_KDP
+	return ((struct kdp_vfsmount *)mnt)->bp_mount;
+#else
 	return container_of(mnt, struct mount, mnt);
+#endif
 }
 
 static inline int mnt_has_parent(struct mount *mnt)
@@ -98,7 +109,11 @@ extern bool legitimize_mnt(struct vfsmount *, unsigned);
 static inline bool __path_is_mountpoint(const struct path *path)
 {
 	struct mount *m = __lookup_mnt(path->mnt, path->dentry);
+#ifdef CONFIG_FASTUH_KDP
+	return m && likely(!(((struct kdp_mount *)m)->mnt->mnt_flags & MNT_SYNC_UMOUNT));
+#else
 	return m && likely(!(m->mnt.mnt_flags & MNT_SYNC_UMOUNT));
+#endif
 }
 
 extern void __detach_mounts(struct dentry *dentry);

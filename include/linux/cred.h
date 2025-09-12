@@ -20,6 +20,10 @@
 #include <linux/sched.h>
 #include <linux/sched/user.h>
 
+#ifdef CONFIG_FASTUH_KDP
+#include <linux/kdp.h>
+#endif
+
 struct cred;
 struct inode;
 
@@ -156,6 +160,16 @@ struct cred {
 	};
 } __randomize_layout;
 
+#ifdef CONFIG_FASTUH_KDP
+struct cred_kdp {
+	struct cred cred;
+	atomic_t *use_cnt;
+	struct task_struct *bp_task;
+	void *bp_pgd;
+	unsigned long long type;
+};
+#endif
+
 extern void __put_cred(struct cred *);
 extern void exit_creds(struct task_struct *);
 extern int copy_creds(struct task_struct *, unsigned long);
@@ -228,11 +242,13 @@ static inline bool cap_ambient_invariant_ok(const struct cred *cred)
  * Get a reference on the specified set of new credentials.  The caller must
  * release the reference.
  */
+#ifndef CONFIG_FASTUH_KDP
 static inline struct cred *get_new_cred(struct cred *cred)
 {
 	atomic_inc(&cred->usage);
 	return cred;
 }
+#endif
 
 /**
  * get_cred - Get a reference on a set of credentials
@@ -253,6 +269,11 @@ static inline const struct cred *get_cred(const struct cred *cred)
 	if (!cred)
 		return cred;
 	validate_creds(cred);
+#ifdef CONFIG_FASTUH_KDP
+	if (is_kdp_protect_addr((unsigned long)nonconst_cred))
+		GET_ROCRED_RCU(nonconst_cred)->non_rcu = 0;
+	else
+#endif
 	nonconst_cred->non_rcu = 0;
 	return get_new_cred(nonconst_cred);
 }
@@ -262,9 +283,23 @@ static inline const struct cred *get_cred_rcu(const struct cred *cred)
 	struct cred *nonconst_cred = (struct cred *) cred;
 	if (!cred)
 		return NULL;
+#ifdef CONFIG_FASTUH_KDP
+	if (nonconst_cred == &init_cred) {
+		if (!atomic_inc_not_zero(init_cred_kdp.use_cnt))
+			return NULL;
+	} else {
+		if (!atomic_inc_not_zero(((struct cred_kdp *)nonconst_cred)->use_cnt))
+			return NULL;
+	}
+#else
 	if (!atomic_inc_not_zero(&nonconst_cred->usage))
 		return NULL;
+#endif
 	validate_creds(cred);
+#ifdef CONFIG_FASTUH_KDP
+	if (is_kdp_protect_addr((unsigned long)nonconst_cred))
+		GET_ROCRED_RCU(nonconst_cred)->non_rcu = 0;
+#endif
 	return cred;
 }
 
@@ -279,6 +314,7 @@ static inline const struct cred *get_cred_rcu(const struct cred *cred)
  * on task_struct are attached by const pointers to prevent accidental
  * alteration of otherwise immutable credential sets.
  */
+#ifndef CONFIG_FASTUH_KDP
 static inline void put_cred(const struct cred *_cred)
 {
 	struct cred *cred = (struct cred *) _cred;
@@ -289,6 +325,7 @@ static inline void put_cred(const struct cred *_cred)
 			__put_cred(cred);
 	}
 }
+#endif
 
 /**
  * current_cred - Access the current task's subjective credentials

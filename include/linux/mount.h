@@ -77,6 +77,13 @@ struct vfsmount {
 	ANDROID_KABI_RESERVE(4);
 } __randomize_layout;
 
+#ifdef CONFIG_FASTUH_KDP
+struct kdp_vfsmount {
+	struct vfsmount mnt;
+	struct mount *bp_mount;	/* pointer to mount*/
+};
+#endif
+
 struct file; /* forward dec */
 struct path;
 
