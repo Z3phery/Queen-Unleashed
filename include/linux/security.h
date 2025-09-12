@@ -63,6 +63,10 @@ struct mm_struct;
 struct fs_context;
 struct fs_parameter;
 enum fs_value_type;
+
+/* Default (no) options for the capable function */
+#define CAP_OPT_NONE 0x0
+/* If capable should audit the security request */
 #define CAP_OPT_NOAUDIT BIT(1)
 /* If capable is being called by a setid function */
 #define CAP_OPT_INSETID BIT(2)

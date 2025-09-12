@@ -273,6 +273,68 @@ void rkp_set_data(struct vfsmount *mnt,void *data)
 {
 	uh_call(UH_APP_RKP, RKP_KDP_X55, (u64)mnt, (u64)data, 0, 0);
 }
+
+void rkp_populate_sb(char *mount_point, struct vfsmount *mnt) 
+{
+	struct super_block *sb = NULL;
+
+	if (!mount_point || !mnt)
+		return;
+	
+	sb = mnt->mnt_sb;
+
+	if (!odm_sb &&
+		!strncmp(mount_point, KDP_MOUNT_PRODUCT, KDP_MOUNT_PRODUCT_LEN)) {
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&odm_sb, (u64)mnt, KDP_SB_ODM, 0);
+	} else if (!sys_sb &&
+		!strncmp(mount_point, KDP_MOUNT_SYSTEM, KDP_MOUNT_SYSTEM_LEN)) {
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&sys_sb, (u64)mnt, KDP_SB_SYS, 0);
+	} else if (!sys_sb &&
+		!strncmp(mount_point, KDP_MOUNT_SYSTEM2, KDP_MOUNT_SYSTEM2_LEN)) {
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&sys_sb, (u64)mnt, KDP_SB_SYS, 0);
+	} else if (!vendor_sb &&
+		!strncmp(mount_point, KDP_MOUNT_VENDOR, KDP_MOUNT_VENDOR_LEN)) {
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&vendor_sb, (u64)mnt, KDP_SB_VENDOR, 0);
+	} else if(!crypt_sb && strstr(mount_point, KDP_MOUNT_CRYPT)) {
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&crypt_sb, (u64)mnt, KDP_SB_CRYPT, 0);
+	} else if(!dex2oat_sb && !strncmp(mount_point, KDP_MOUNT_DEX2OAT, KDP_MOUNT_DEX2OAT_LEN)) {
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&dex2oat_sb, (u64)mnt, KDP_SB_DEX2OAT, 0);
+	} else if((dex2oat_count < DEX2OAT_ALLOW) && !strncmp(mount_point, KDP_MOUNT_DEX2OAT, KDP_MOUNT_DEX2OAT_LEN)) {
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&dex2oat_sb, (u64)mnt, KDP_SB_DEX2OAT, 0);
+		dex2oat_count++;
+	} else if (!adbd_sb &&
+		!strncmp(mount_point, KDP_MOUNT_ADBD, KDP_MOUNT_ADBD_LEN - 1)) {
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&adbd_sb, (u64)mnt, KDP_SB_ADBD, 0);
+	} else if (!art_sb &&
+		!strncmp(mount_point, KDP_MOUNT_ART, KDP_MOUNT_ART_LEN - 1)) {
+		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&art_sb, (u64)mnt, KDP_SB_ART, 0);
+	} else if ((art_count < ART_ALLOW) &&
+		!strncmp(mount_point, KDP_MOUNT_ART2, KDP_MOUNT_ART2_LEN - 1)) {
+		if (art_count)
+			uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&art_sb, (u64)mnt, KDP_SB_ART, 0);
+		art_count++;
+	}
+}
+
+int rkp_do_new_mount(struct vfsmount *mnt, struct path *path)
+{
+	char *buf = NULL;
+	char *dir_name;
+
+
+	buf = kzalloc(PATH_MAX, GFP_KERNEL);
+	if (!buf)
+		return -ENOMEM;
+
+	dir_name = dentry_path_raw(path->dentry, buf, PATH_MAX);
+	if (!sys_sb || !odm_sb || !vendor_sb || !art_sb || !crypt_sb || !dex2oat_sb || !dex2oat_count || !adbd_sb
+			|| (dex2oat_count < DEX2OAT_ALLOW) || (art_count < ART_ALLOW))
+		rkp_populate_sb(dir_name, mnt);
+
+	kfree(buf);
+
+	return 0;
+}
 #endif
 
 static inline struct hlist_head *mp_hash(struct dentry *dentry)
@@ -737,6 +799,7 @@ static int mnt_make_readonly(struct mount *mnt)
 	rkp_reset_mnt_flags(mnt->mnt, MNT_WRITE_HOLD);
 #else
 	mnt->mnt.mnt_flags &= ~MNT_WRITE_HOLD;
+#endif
 	return ret;
 }
 
@@ -1231,7 +1294,7 @@ struct vfsmount *vfs_create_mount(struct fs_context *fc)
 	if (!mnt)
 		return ERR_PTR(-ENOMEM);
 
-	if (type->alloc_mnt_data) {
+	if (fc->fs_type->alloc_mnt_data) {
 #ifdef CONFIG_KDP_NS
 		rkp_set_data(mnt->mnt, fc->fs_type->alloc_mnt_data());
 		if (!mnt->mnt->data) {
@@ -1244,7 +1307,11 @@ struct vfsmount *vfs_create_mount(struct fs_context *fc)
 			return ERR_PTR(-ENOMEM);
 		}
 		if (sb->s_op->update_mnt_data)
+#ifdef CONFIG_KDP_NS
+			sb->s_op->update_mnt_data(mnt->mnt->data, fc);
+#else
 			sb->s_op->update_mnt_data(mnt->mnt.data, fc);
+#endif
 	}
 	if (fc->sb_flags & SB_KERNMOUNT)
 #ifdef CONFIG_KDP_NS
@@ -1255,7 +1322,7 @@ struct vfsmount *vfs_create_mount(struct fs_context *fc)
 
 	atomic_inc(&fc->root->d_sb->s_active);
 #ifdef CONFIG_KDP_NS
-	rkp_set_mnt_root_sb(mnt->mnt, root, fc->root->d_sb);
+	rkp_set_mnt_root_sb(mnt->mnt, dget(fc->root), fc->root->d_sb);
 	mnt->mnt_mountpoint = mnt->mnt->mnt_root;
 #else
 	mnt->mnt.mnt_sb		= fc->root->d_sb;
@@ -1267,7 +1334,7 @@ struct vfsmount *vfs_create_mount(struct fs_context *fc)
 	lock_mount_hash();
 
 #ifdef CONFIG_KDP_NS
-	list_add_tail(&mnt->mnt_instance, mnt->mnt->mnt_sb->s_mounts);
+	list_add_tail(&mnt->mnt_instance, &mnt->mnt->mnt_sb->s_mounts);
 #else
 	list_add_tail(&mnt->mnt_instance, &mnt->mnt.mnt_sb->s_mounts);
 #endif
@@ -2124,7 +2191,11 @@ static int can_umount(const struct path *path, int flags)
 		return -EINVAL;
 	if (!check_mnt(mnt))
 		return -EINVAL;
+#ifdef CONFIG_KDP_NS
+	if (mnt->mnt->mnt_flags & MNT_LOCKED) /* Check optimistically */
+#else
 	if (mnt->mnt.mnt_flags & MNT_LOCKED) /* Check optimistically */
+#endif
 		return -EINVAL;
 	if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))
 		return -EPERM;
@@ -2367,7 +2438,11 @@ static bool has_locked_children(struct mount *mnt, struct dentry *dentry)
 		if (!is_subdir(child->mnt_mountpoint, dentry))
 			continue;
 
+#ifdef CONFIG_KDP_NS
+		if (child->mnt->mnt_flags & MNT_LOCKED)
+#else
 		if (child->mnt.mnt_flags & MNT_LOCKED)
+#endif
 			return true;
 	}
 	return false;
@@ -2403,7 +2478,11 @@ struct vfsmount *clone_private_mount(const struct path *path)
 	if (IS_ERR(new_mnt))
 		return ERR_CAST(new_mnt);
 
+#ifdef CONFIG_KDP_NS
+	return new_mnt->mnt;
+#else
 	return &new_mnt->mnt;
+#endif
 
 invalid:
 	up_read(&namespace_sem);
@@ -2824,7 +2903,11 @@ out:
  */
 static bool can_change_locked_flags(struct mount *mnt, unsigned int mnt_flags)
 {
+#ifdef CONFIG_KDP_NS
+	unsigned int fl = mnt->mnt->mnt_flags;
+#else
 	unsigned int fl = mnt->mnt.mnt_flags;
+#endif
 
 	if ((fl & MNT_LOCK_READONLY) &&
 	    !(mnt_flags & MNT_READONLY))
@@ -2853,7 +2936,11 @@ static int change_mount_ro_state(struct mount *mnt, unsigned int mnt_flags)
 {
 	bool readonly_request = (mnt_flags & MNT_READONLY);
 
+#ifdef CONFIG_KDP_NS
+	if (readonly_request == __mnt_is_readonly(mnt->mnt))
+#else
 	if (readonly_request == __mnt_is_readonly(&mnt->mnt))
+#endif
 		return 0;
 
 	if (readonly_request)
@@ -2873,8 +2960,13 @@ static int change_mount_ro_state(struct mount *mnt, unsigned int mnt_flags)
  */
 static void set_mount_attributes(struct mount *mnt, unsigned int mnt_flags)
 {
+#ifdef CONFIG_KDP_NS
+	mnt_flags |= mnt->mnt->mnt_flags & ~MNT_USER_SETTABLE_MASK;
+	rkp_assign_mnt_flags(mnt->mnt, mnt_flags);
+#else
 	mnt_flags |= mnt->mnt.mnt_flags & ~MNT_USER_SETTABLE_MASK;
 	mnt->mnt.mnt_flags = mnt_flags;
+#endif
 	touch_mnt_namespace(mnt->mnt_ns);
 }
 
@@ -2892,7 +2984,7 @@ static int do_reconfigure_mnt(struct path *path, unsigned int mnt_flags)
 	if (!check_mnt(mnt))
 		return -EINVAL;
 
-#ifdef CONFIG_FASTUH_KDP
+#ifdef CONFIG_KDP_NS
 	if (path->dentry != mnt->mnt->mnt_root)
 #else
 	if (path->dentry != mnt->mnt.mnt_root)
@@ -3145,53 +3237,16 @@ static int do_new_mount_fc(struct fs_context *fc, struct path *mountpoint,
 	error = do_add_mount(real_mount(mnt), mountpoint, mnt_flags);
 	if (error < 0)
 		mntput(mnt);
+#ifdef CONFIG_KDP_NS
+	/* We check the value of error of do_add_mount */
+	if (error >= 0) {
+		error = rkp_do_new_mount(mnt, mountpoint);
+		if (error)
+			return error;
+	}
+#endif	
 	return error;
 }
-
-#ifdef CONFIG_KDP_NS
-static void rkp_populate_sb(char *mount_point, struct vfsmount *mnt) 
-{
-	struct super_block *sb = NULL;
-
-	if (!mount_point || !mnt)
-		return;
-	
-	sb = mnt->mnt_sb;
-
-	if (!odm_sb &&
-		!strncmp(mount_point, KDP_MOUNT_PRODUCT, KDP_MOUNT_PRODUCT_LEN)) {
-		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&odm_sb, (u64)mnt, KDP_SB_ODM, 0);
-	} else if (!sys_sb &&
-		!strncmp(mount_point, KDP_MOUNT_SYSTEM, KDP_MOUNT_SYSTEM_LEN)) {
-		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&sys_sb, (u64)mnt, KDP_SB_SYS, 0);
-	} else if (!sys_sb &&
-		!strncmp(mount_point, KDP_MOUNT_SYSTEM2, KDP_MOUNT_SYSTEM2_LEN)) {
-		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&sys_sb, (u64)mnt, KDP_SB_SYS, 0);
-	} else if (!vendor_sb &&
-		!strncmp(mount_point, KDP_MOUNT_VENDOR, KDP_MOUNT_VENDOR_LEN)) {
-		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&vendor_sb, (u64)mnt, KDP_SB_VENDOR, 0);
-	} else if(!crypt_sb && strstr(mount_point, KDP_MOUNT_CRYPT)) {
-		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&crypt_sb, (u64)mnt, KDP_SB_CRYPT, 0);
-	} else if(!dex2oat_sb && !strncmp(mount_point, KDP_MOUNT_DEX2OAT, KDP_MOUNT_DEX2OAT_LEN)) {
-		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&dex2oat_sb, (u64)mnt, KDP_SB_DEX2OAT, 0);
-	} else if((dex2oat_count < DEX2OAT_ALLOW) && !strncmp(mount_point, KDP_MOUNT_DEX2OAT, KDP_MOUNT_DEX2OAT_LEN)) {
-		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&dex2oat_sb, (u64)mnt, KDP_SB_DEX2OAT, 0);
-		dex2oat_count++;
-	} else if (!adbd_sb &&
-		!strncmp(mount_point, KDP_MOUNT_ADBD, KDP_MOUNT_ADBD_LEN - 1)) {
-		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&adbd_sb, (u64)mnt, KDP_SB_ADBD, 0);
-	} else if (!art_sb &&
-		!strncmp(mount_point, KDP_MOUNT_ART, KDP_MOUNT_ART_LEN - 1)) {
-		uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&art_sb, (u64)mnt, KDP_SB_ART, 0);
-	} else if ((art_count < ART_ALLOW) &&
-		!strncmp(mount_point, KDP_MOUNT_ART2, KDP_MOUNT_ART2_LEN - 1)) {
-		if (art_count)
-			uh_call(UH_APP_RKP, RKP_KDP_X56, (u64)&art_sb, (u64)mnt, KDP_SB_ART, 0);
-		art_count++;
-	}
-}
-#endif /*CONFIG_KDP_NS*/
-
 
 /*
  * create a new mount for userspace and request it to be added into the
@@ -4169,7 +4224,7 @@ static bool mnt_already_visible(struct mnt_namespace *ns,
 		struct mount *child;
 		int mnt_flags;
 #ifdef CONFIG_KDP_NS
-		if (mnt->mnt->mnt_sb->s_type != new->mnt_sb->s_type)
+		if (mnt->mnt->mnt_sb->s_type != sb->s_type)
 			continue;
 
 		/* This mount is not fully visible if it's root directory

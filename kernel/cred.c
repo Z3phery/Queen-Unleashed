@@ -317,8 +317,10 @@ const struct cred *get_task_cred(struct task_struct *task)
 		if (rkp_ro_page((unsigned long)cred)) {
 			inc_test = rocred_uc_inc_not_zero(cred);
 		}
-		else
-			inc_test = get_cred_rcu(cred);
+		else {
+			cred = get_cred_rcu(cred);
+			inc_test = (cred != NULL);
+		}
 	} while (!inc_test);
 #else
 	do {

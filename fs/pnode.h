@@ -48,6 +48,8 @@
 
 #ifdef CONFIG_KDP_NS
 extern void rkp_assign_mnt_flags(struct vfsmount *,int);
+extern void rkp_reset_mnt_flags(struct vfsmount *mnt,int flags);
+
 static inline void set_mnt_shared(struct mount *mnt)
 {
 	int mnt_flags = mnt->mnt->mnt_flags; 
