@@ -25,7 +25,11 @@
 #include "blk-mq-tag.h"
 #include "blk-mq-sched.h"
 
+#if IS_ENABLED(CONFIG_BLK_SEC_STATS)
 extern void blk_sec_account_process_IO(struct bio *bio);
+#else
+#define blk_sec_account_process_IO(bio)	do {} while(0)
+#endif
 
 static const int read_expire = HZ / 2;		/* max time before a read is submitted. */
 static const int write_expire = 5 * HZ;		/* ditto for writes, these limits are SOFT! */
