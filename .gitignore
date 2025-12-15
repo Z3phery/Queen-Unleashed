@@ -143,3 +143,4 @@ Android.bp
 # Ignore build environment
 build_env/
 out/
+valhalla.sh
