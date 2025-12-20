@@ -144,3 +144,5 @@ Android.bp
 build_env/
 out/
 valhalla.sh
+valUI.sh
+vallhalla.sh
