@@ -337,7 +337,7 @@
 	};
 
 	chosen {
-		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kpti=off cgroup.memory=nokmem cgroup_disable=pressure";
+		bootargs = "rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kpti=off cgroup.memory=nokmem";
 	};
 
 	firmware: firmware {
