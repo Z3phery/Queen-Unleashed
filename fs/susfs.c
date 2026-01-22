@@ -19,9 +19,8 @@
 
 extern bool susfs_is_current_ksu_domain(void);
 
-/* Solución al error de compilación: Definición de símbolos */
-u32 susfs_ksu_sid = 0;
-u32 susfs_kernel_sid = 0;
+extern u32 susfs_ksu_sid;
+extern u32 susfs_kernel_sid;
 bool susfs_is_avc_log_spoofing_enabled = false;
 
 #ifdef CONFIG_KSU_SUSFS_ENABLE_LOG
