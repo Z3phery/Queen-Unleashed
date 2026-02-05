@@ -173,14 +173,14 @@ enum fps {
  * is correctly serialised wrt the caller's subsequent test of whether to
  * actually sleep:
  *
- * for (;;) {
+ *   for (;;) {
  *	set_current_state(TASK_UNINTERRUPTIBLE);
  *	if (!need_sleep)
  *		break;
  *
  *	schedule();
- * }
- * __set_current_state(TASK_RUNNING);
+ *   }
+ *   __set_current_state(TASK_RUNNING);
  *
  * If the caller does not need such serialisation (because, for instance, the
  * condition test and condition change and wakeup are under the same lock) then
@@ -188,8 +188,8 @@ enum fps {
  *
  * The above is typically ordered against the wakeup, which does:
  *
- * need_sleep = false;
- * wake_up_state(p, TASK_UNINTERRUPTIBLE);
+ *   need_sleep = false;
+ *   wake_up_state(p, TASK_UNINTERRUPTIBLE);
  *
  * where wake_up_state() executes a full memory barrier before accessing the
  * task state.
@@ -231,12 +231,12 @@ enum fps {
 #define TASK_COMM_LEN			16
 
 enum task_event {
-	PUT_PREV_TASK    = 0,
+	PUT_PREV_TASK   = 0,
 	PICK_NEXT_TASK  = 1,
-	TASK_WAKE        = 2,
+	TASK_WAKE       = 2,
 	TASK_MIGRATE    = 3,
-	TASK_UPDATE      = 4,
-	IRQ_UPDATE       = 5,
+	TASK_UPDATE     = 4,
+	IRQ_UPDATE      = 5,
 };
 
 /* Note: this need to be in sync with migrate_type_names array */
@@ -414,8 +414,8 @@ struct load_weight {
 /**
  * struct util_est - Estimation utilization of FAIR tasks
  * @enqueued: instantaneous estimated utilization of a task/cpu
- * @ewma:      the Exponential Weighted Moving Average (EWMA)
- * utilization of a task
+ * @ewma:     the Exponential Weighted Moving Average (EWMA)
+ *            utilization of a task
  *
  * Support data structure to track an Exponential Weighted Moving Average
  * (EWMA) of a FAIR task's utilization. New samples are added to the moving
@@ -445,7 +445,7 @@ struct util_est {
  *
  * [load_avg definition]
  *
- * load_avg = runnable% * scale_load_down(load)
+ *   load_avg = runnable% * scale_load_down(load)
  *
  * where runnable% is the time ratio that a sched_entity is runnable.
  * For cfs_rq, it is the aggregated load_avg of all runnable and
@@ -453,7 +453,7 @@ struct util_est {
  *
  * [util_avg definition]
  *
- * util_avg = running% * SCHED_CAPACITY_SCALE
+ *   util_avg = running% * SCHED_CAPACITY_SCALE
  *
  * where running% is the time ratio that a sched_entity is running on
  * a CPU. For cfs_rq, it is the aggregated util_avg of all runnable
@@ -477,7 +477,7 @@ struct util_est {
  * For all other cases (including 32-bit kernels), struct load_weight's
  * weight will overflow first before we do, because:
  *
- * Max(load_avg) <= Max(load.weight)
+ *    Max(load_avg) <= Max(load.weight)
  *
  * Then it is the load_weight's responsibility to consider overflow
  * issues.
@@ -1319,9 +1319,9 @@ struct task_struct {
 	 * This pointer is only modified for current in syscall and
 	 * pagefault context (and for tasks being destroyed), so it can be read
 	 * from any of the following contexts:
-	 * - RCU read-side critical section
-	 * - current->numa_group from everywhere
-	 * - task's runqueue locked, task not running
+	 *  - RCU read-side critical section
+	 *  - current->numa_group from everywhere
+	 *  - task's runqueue locked, task not running
 	 */
 	struct numa_group __rcu		*numa_group;
 
@@ -1503,14 +1503,10 @@ struct task_struct {
 	/* Used by LSM modules for access restriction: */
 	void				*security;
 #endif
-
 #ifdef CONFIG_SEC_PERF_MANAGER
 	int drawing_flag;
 	int drawing_mig_boost;
 #endif
-
-	bool is_sar_game;
-
 	/* task is frozen/stopped (used by the cgroup freezer) */
 	ANDROID_KABI_USE(1, unsigned frozen:1);
 
@@ -1568,7 +1564,7 @@ static inline struct pid *task_pid(struct task_struct *task)
  *
  * task_xid_nr()     : global id, i.e. the id seen from the init namespace;
  * task_xid_vnr()    : virtual id, i.e. the id seen from the pid namespace of
- * current.
+ *                     current.
  * task_xid_nr_ns()  : id seen from the ns specified;
  *
  * see also pid_nr() etc in include/linux/pid.h
@@ -1941,9 +1937,9 @@ static inline struct thread_info *task_thread_info(struct task_struct *task)
  * find a task by one of its numerical ids
  *
  * find_task_by_pid_ns():
- * finds a task by its pid in the specified namespace
+ *      finds a task by its pid in the specified namespace
  * find_task_by_vpid():
- * finds a task by its virtual pid
+ *      finds a task by its virtual pid
  *
  * see also find_vpid() etc in include/linux/pid.h
  */
